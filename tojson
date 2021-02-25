@@ -1,0 +1,67 @@
+#!/usr/bin/env python3
+
+# example:
+# ps --no-headers -eo pid,user,%cpu,%mem,args \
+# | ./tojson '^\s*(?P<pid>\d+)\s+(?P<user>\w+)\s+(?P<cpu>\d+\.\d+)\s+(?P<mem>\d+\.\d+)\s+(?P<cmd>[^[].+)$'
+
+from re import compile as regex, error as regex_error
+from sys import stdin, argv, exit
+from json import dumps as to_json_string
+from math import isfinite
+
+# command line parameters
+if len(argv) != 2:
+	from os.path import basename
+	exit(f'usage: {basename(argv[0])} REGEX')
+
+# compile regex
+try:
+	search = regex(argv[1]).search
+except regex_error as err:
+	exit(f'invalid regular expresion: {err}')
+
+# convert match object to JSON string
+def to_json(m):
+	d = m.groupdict()
+
+	for k in tuple(d.keys()):
+		if d[k] is None:
+			del d[k]
+			continue
+
+		try:
+			d[k] = int(d[k])
+		except ValueError:
+			pass
+		else:
+			continue
+
+		try:
+			v = float(d[k])
+		except (ValueError, OverflowError):
+			pass
+		else:
+			if isfinite(v):	# JSON does not support NaN's
+				d[k] = v
+
+	return to_json_string(d, ensure_ascii = False, check_circular = False, allow_nan = False)
+
+# input iterator
+it = map(to_json, filter(None, map(lambda s: search(s.rstrip()), stdin)))
+
+# run
+try:
+	first = next(it)
+except StopIteration:
+	exit(0)
+
+try:
+	print(f'[ {first}\n, {next(it)}')
+except StopIteration:
+	print(first)	# print as a single JSON object
+	exit(0)
+
+for obj in it:
+	print(',', obj)
+
+print(']')
