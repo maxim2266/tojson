@@ -16,8 +16,8 @@ Usage: tojson REGEX
   trailing whitespace before applying REGEX. Output always goes to STDOUT.
 ```
 
-#### Installation
-Just copy `tojson` file to a directory included in the `$PATH` environment variable.
+Typical use cases include parsing plain text log files or Unix commands output
+to extract useful information and convert it to JSON, a machine-readable format.
 
 #### Example
 ```sh
@@ -40,6 +40,9 @@ Output:
 ...
 ]
 ```
+
+#### Installation
+Just copy `tojson` file to a directory included in the `$PATH` environment variable.
 
 #### Status
 Tested on Linux Mint 20.1 with Python 3.8.5.
