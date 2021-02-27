@@ -1,26 +1,72 @@
 #!/usr/bin/env python3
 
-# example:
-# ps --no-headers -eo pid,user,%cpu,%mem,args \
-# | ./tojson '^\s*(?P<pid>\d+)\s+(?P<user>\w+)\s+(?P<cpu>\d+\.\d+)\s+(?P<mem>\d+\.\d+)\s+(?P<cmd>[^[].+)$'
+# BSD 3-Clause License
 
-from re import compile as regex, error as regex_error
+# Copyright (c) 2021, Maxim Konakov
+# All rights reserved.
+
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+
+# * Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
+
+# * Redistributions in binary form must reproduce the above copyright notice,
+#   this list of conditions and the following disclaimer in the documentation
+#   and/or other materials provided with the distribution.
+
+# * Neither the name of the copyright holder nor the names of its
+#   contributors may be used to endorse or promote products derived from
+#   this software without specific prior written permission.
+
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 from sys import stdin, argv, exit
-from json import dumps as to_json_string
+from signal import signal, strsignal, SIGHUP, SIGINT, SIGTERM
+
+# install signal handlers
+def sig_handler(sig, _):
+	exit(f'{strsignal(sig)} [{sig}]')
+
+signal(SIGHUP, sig_handler)
+signal(SIGINT, sig_handler)
+signal(SIGTERM, sig_handler)
+
+# other imports
+from re import compile as regex, error as regex_error
+from json import JSONEncoder
 from math import isfinite
 
 # command line parameters
 if len(argv) != 2:
 	from os.path import basename
-	exit(f'usage: {basename(argv[0])} REGEX')
+	exit(f'''\
+Usage: {basename(argv[0])} REGEX
+  Convert input text from STDIN to JSON via the given Python regular expression
+  REGEX. Each line of the input is searched for the first match of the regular
+  expression and converted to a JSON object using names of the capturing groups
+  as keys, and their corresponding captures as values. Unnamed capturing groups
+  and groups that did not match are ignored. Each input line is stripped of any
+  trailing whitespace before applying REGEX. Output always goes to STDOUT.''')
 
 # compile regex
 try:
 	search = regex(argv[1]).search
 except regex_error as err:
-	exit(f'invalid regular expresion: {err}')
+	exit(f'error: invalid regular expression: {err}')
 
 # convert match object to JSON string
+encode = JSONEncoder(ensure_ascii = False, check_circular = False, allow_nan = False).encode
+
 def to_json(m):
 	d = m.groupdict()
 
@@ -41,27 +87,24 @@ def to_json(m):
 		except (ValueError, OverflowError):
 			pass
 		else:
-			if isfinite(v):	# JSON does not support NaN's
+			if isfinite(v):	# JSON does not support NaN and Inf
 				d[k] = v
 
-	return to_json_string(d, ensure_ascii = False, check_circular = False, allow_nan = False)
+	return encode(d)
 
 # input iterator
 it = map(to_json, filter(None, map(lambda s: search(s.rstrip()), stdin)))
 
 # run
 try:
-	first = next(it)
-except StopIteration:
-	exit(0)
+	try:
+		print('[', next(it))
+	except StopIteration:
+		print('[]')
+	else:
+		for rec in it:
+			print(',', rec)
 
-try:
-	print(f'[ {first}\n, {next(it)}')
-except StopIteration:
-	print(first)	# print as a single JSON object
-	exit(0)
-
-for obj in it:
-	print(',', obj)
-
-print(']')
+		print(']')
+except OSError as err:
+	exit(err)
