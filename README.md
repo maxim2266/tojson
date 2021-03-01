@@ -6,23 +6,23 @@ Convert text to JSON via regular expression.
 
 #### Usage:
 ```
-▶ tojson
-Usage: tojson REGEX
-  Take input text from STDIN and convert it to JSON via the given Python regular
-  expression REGEX. Each line of the input is searched for the first match of the
-  regular expression and converted to a JSON object using names of the capturing
-  groups as keys, and their corresponding captures as values. Unnamed capturing
-  groups and groups that did not match are ignored. Each input line is stripped
-  of any trailing whitespace before applying REGEX. Output always goes to STDOUT.
-
-  By default, in each output object all values are JSON strings, unless the
-  capturing group name has "__N" suffix, in which case the program makes an attempt
-  to convert the value to a JSON number, or "__B" suffix to convert the value to
-  JSON "true" or "false". In either case, the suffix is removed from the key, and
-  failed conversions leave values as strings. The boolean conversion treats strings
-  like "true" or "yes" as JSON "true", and strings like "false" and "no" as JSON
-  "false", case-insensitive.
+tojson REGEX
 ```
+
+Take input text from STDIN and convert it to JSON via the given Python regular
+expression REGEX. Each line of the input is searched for the first match of the
+regular expression and converted to a JSON object using names of the capturing
+groups as keys, and their corresponding captures as values. Unnamed capturing
+groups and groups that did not match are ignored. Each input line is stripped
+of any trailing whitespace before applying REGEX. Output always goes to STDOUT.
+
+By default, in each output object all values are JSON strings, unless the
+capturing group name has "__N" suffix, in which case the program makes an attempt
+to convert the value to a JSON number, or "__B" suffix to convert the value to
+JSON "true" or "false". In either case, the suffix is removed from the key, and
+failed conversions leave values as strings. The boolean conversion treats strings
+like "true" or "yes" as JSON "true", and strings like "false" and "no" as JSON
+"false", case-insensitive.
 
 Typical use cases include parsing plain text log files or Unix commands output
 to extract useful information and convert it to JSON for further processing.
