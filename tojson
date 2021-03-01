@@ -51,18 +51,61 @@ if len(argv) != 2:
 	from os.path import basename
 	exit(f'''\
 Usage: {basename(argv[0])} REGEX
-  Convert input text from STDIN to JSON via the given Python regular expression
-  REGEX. Each line of the input is searched for the first match of the regular
-  expression and converted to a JSON object using names of the capturing groups
-  as keys, and their corresponding captures as values. Unnamed capturing groups
-  and groups that did not match are ignored. Each input line is stripped of any
-  trailing whitespace before applying REGEX. Output always goes to STDOUT.''')
+  Take input text from STDIN and convert it to JSON via the given Python regular
+  expression REGEX. Each line of the input is searched for the first match of the
+  regular expression and converted to a JSON object using names of the capturing
+  groups as keys, and their corresponding captures as values. Unnamed capturing
+  groups and groups that did not match are ignored. Each input line is stripped
+  of any trailing whitespace before applying REGEX. Output always goes to STDOUT.
+
+  By default, in each output object all values are JSON strings, unless the
+  capturing group name has "__N" suffix, in which case the program makes an attempt
+  to convert the value to a JSON number, or "__B" suffix to convert the value to
+  JSON "true" or "false". In either case, the suffix is removed from the key, and
+  failed conversions leave values as strings. The boolean conversion treats strings
+  like "true" or "yes" as JSON "true", and strings like "false" and "no" as JSON
+  "false", case-insensitive.''')
 
 # compile regex
 try:
 	search = regex(argv[1]).search
 except regex_error as err:
 	exit(f'error: invalid regular expression: {err}')
+
+# value converters
+def to_number(val):
+	try:
+		return int(val)
+	except ValueError:
+		pass
+
+	try:
+		v = float(val)
+	except (ValueError, OverflowError):
+		pass
+	else:
+		if isfinite(v):	# true JSON does not support NaN and Inf
+			return v
+
+	return val
+
+match_boolean = regex('(?i)(y(?:es)?|true)|(no?|false)').fullmatch
+
+def to_boolean(val):
+	m = match_boolean(val)
+
+	if m:
+		y, n = m.groups()
+
+		if y:
+			return True
+		elif n:
+			return False
+
+	return val
+
+def try_convert(d, k, fn):
+	d[k[:-3]] = fn(d.pop(k))
 
 # convert match object to JSON string
 encode = JSONEncoder(ensure_ascii = False, check_circular = False, allow_nan = False).encode
@@ -73,27 +116,15 @@ def to_json(m):
 	for k in tuple(d.keys()):
 		if d[k] is None:
 			del d[k]
-			continue
-
-		try:
-			d[k] = int(d[k])
-		except ValueError:
-			pass
-		else:
-			continue
-
-		try:
-			v = float(d[k])
-		except (ValueError, OverflowError):
-			pass
-		else:
-			if isfinite(v):	# JSON does not support NaN and Inf
-				d[k] = v
+		elif k.endswith('__N'):
+			try_convert(d, k, to_number)
+		elif k.endswith('__B'):
+			try_convert(d, k, to_boolean)
 
 	return encode(d)
 
 # input iterator
-it = map(to_json, filter(None, map(lambda s: search(s.rstrip()), stdin)))
+it = (to_json(m) for m in (search(s.rstrip()) for s in stdin) if m)
 
 # run
 try:
